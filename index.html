@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>特殊文字変換ツール - Unicode Text Converter</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+
+        .input-section {
+            margin-bottom: 30px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 10px;
+            color: #555;
+            font-weight: 600;
+        }
+
+        #textInput {
+            width: 100%;
+            padding: 15px;
+            font-size: 1.1em;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            transition: border-color 0.3s;
+            font-family: inherit;
+        }
+
+        #textInput:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .output-section {
+            margin-top: 30px;
+        }
+
+        .style-item {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .style-item:hover {
+            background: #e9ecef;
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .style-name {
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+        }
+
+        .style-output {
+            font-size: 1.3em;
+            color: #333;
+            word-break: break-all;
+            user-select: all;
+        }
+
+        .copy-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #28a745;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: all 0.3s;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .copy-notification.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #999;
+            padding: 40px;
+            font-size: 1.1em;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 1.8em;
+            }
+
+            .style-output {
+                font-size: 1.1em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>✨ 特殊文字変換ツール</h1>
+        <p class="subtitle">アルファベットを様々なUnicode特殊文字に変換</p>
+
+        <div class="input-section">
+            <label for="textInput">テキストを入力してください：</label>
+            <input type="text" id="textInput" placeholder="例: Hello World" autofocus>
+        </div>
+
+        <div class="output-section" id="outputSection">
+            <div class="empty-state">
+                👆 上のボックスに文字を入力すると、様々なスタイルに変換されます<br>
+                変換された文字をクリックするとコピーできます
+            </div>
+        </div>
+    </div>
+
+    <div class="copy-notification" id="copyNotification">
+        📋 コピーしました！
+    </div>
+
+    <script>
+        const styles = {
+            '太字 (Bold)': {
+                upperStart: 0x1D400,
+                lowerStart: 0x1D41A,
+                digitStart: 0x1D7CE
+            },
+            '斜体 (Italic)': {
+                upperStart: 0x1D434,
+                lowerStart: 0x1D44E,
+                digitStart: null
+            },
+            '太字斜体 (Bold Italic)': {
+                upperStart: 0x1D468,
+                lowerStart: 0x1D482,
+                digitStart: null
+            },
+            'スクリプト (Script)': {
+                upperStart: 0x1D49C,
+                lowerStart: 0x1D4B6,
+                digitStart: null,
+                exceptions: {
+                    'B': 'ℬ', 'E': 'ℰ', 'F': 'ℱ', 'H': 'ℋ',
+                    'I': 'ℐ', 'L': 'ℒ', 'M': 'ℳ', 'R': 'ℛ',
+                    'e': 'ℯ', 'g': 'ℊ', 'o': 'ℴ'
+                }
+            },
+            '太字スクリプト (Bold Script)': {
+                upperStart: 0x1D4D0,
+                lowerStart: 0x1D4EA,
+                digitStart: null
+            },
+            'フラクトゥール (Fraktur)': {
+                upperStart: 0x1D504,
+                lowerStart: 0x1D51E,
+                digitStart: null,
+                exceptions: {
+                    'C': 'ℭ', 'H': 'ℌ', 'I': 'ℑ', 'R': 'ℜ', 'Z': 'ℨ'
+                }
+            },
+            '太字フラクトゥール (Bold Fraktur)': {
+                upperStart: 0x1D56C,
+                lowerStart: 0x1D586,
+                digitStart: null
+            },
+            '二重線 (Double-Struck)': {
+                upperStart: 0x1D538,
+                lowerStart: 0x1D552,
+                digitStart: 0x1D7D8,
+                exceptions: {
+                    'C': 'ℂ', 'H': 'ℍ', 'N': 'ℕ', 'P': 'ℙ',
+                    'Q': 'ℚ', 'R': 'ℝ', 'Z': 'ℤ'
+                }
+            },
+            'サンセリフ (Sans-Serif)': {
+                upperStart: 0x1D5A0,
+                lowerStart: 0x1D5BA,
+                digitStart: 0x1D7E2
+            },
+            '太字サンセリフ (Bold Sans-Serif)': {
+                upperStart: 0x1D5D4,
+                lowerStart: 0x1D5EE,
+                digitStart: 0x1D7EC
+            },
+            '斜体サンセリフ (Italic Sans-Serif)': {
+                upperStart: 0x1D608,
+                lowerStart: 0x1D622,
+                digitStart: null
+            },
+            '太字斜体サンセリフ (Bold Italic Sans-Serif)': {
+                upperStart: 0x1D63C,
+                lowerStart: 0x1D656,
+                digitStart: null
+            },
+            '等幅 (Monospace)': {
+                upperStart: 0x1D670,
+                lowerStart: 0x1D68A,
+                digitStart: 0x1D7F6
+            },
+            '丸囲み (Circled)': {
+                custom: (char) => {
+                    if (char >= 'A' && char <= 'Z') {
+                        return String.fromCodePoint(0x24B6 + (char.charCodeAt(0) - 65));
+                    }
+                    if (char >= 'a' && char <= 'z') {
+                        return String.fromCodePoint(0x24D0 + (char.charCodeAt(0) - 97));
+                    }
+                    if (char >= '0' && char <= '9') {
+                        if (char === '0') return '⓪';
+                        return String.fromCodePoint(0x2460 + (char.charCodeAt(0) - 49));
+                    }
+                    return char;
+                }
+            },
+            '四角囲み (Squared)': {
+                custom: (char) => {
+                    if (char >= 'A' && char <= 'Z') {
+                        return String.fromCodePoint(0x1F130 + (char.charCodeAt(0) - 65));
+                    }
+                    return char;
+                }
+            },
+            '反転 (Inverted)': {
+                custom: (char) => {
+                    const map = {
+                        'a': 'ɐ', 'b': 'q', 'c': 'ɔ', 'd': 'p', 'e': 'ǝ', 'f': 'ɟ',
+                        'g': 'ƃ', 'h': 'ɥ', 'i': 'ᴉ', 'j': 'ɾ', 'k': 'ʞ', 'l': 'l',
+                        'm': 'ɯ', 'n': 'u', 'o': 'o', 'p': 'd', 'q': 'b', 'r': 'ɹ',
+                        's': 's', 't': 'ʇ', 'u': 'n', 'v': 'ʌ', 'w': 'ʍ', 'x': 'x',
+                        'y': 'ʎ', 'z': 'z',
+                        'A': '∀', 'B': 'q', 'C': 'Ɔ', 'D': 'p', 'E': 'Ǝ', 'F': 'Ⅎ',
+                        'G': 'פ', 'H': 'H', 'I': 'I', 'J': 'ſ', 'K': 'ʞ', 'L': '˥',
+                        'M': 'W', 'N': 'N', 'O': 'O', 'P': 'Ԁ', 'Q': 'Ò', 'R': 'ᴚ',
+                        'S': 'S', 'T': '┴', 'U': '∩', 'V': 'Λ', 'W': 'M', 'X': 'X',
+                        'Y': '⅄', 'Z': 'Z'
+                    };
+                    return map[char] || char;
+                }
+            },
+            '反転+逆順 (Inverted + Reversed)': {
+                custom: (char) => {
+                    const map = {
+                        'a': 'ɐ', 'b': 'q', 'c': 'ɔ', 'd': 'p', 'e': 'ǝ', 'f': 'ɟ',
+                        'g': 'ƃ', 'h': 'ɥ', 'i': 'ᴉ', 'j': 'ɾ', 'k': 'ʞ', 'l': 'l',
+                        'm': 'ɯ', 'n': 'u', 'o': 'o', 'p': 'd', 'q': 'b', 'r': 'ɹ',
+                        's': 's', 't': 'ʇ', 'u': 'n', 'v': 'ʌ', 'w': 'ʍ', 'x': 'x',
+                        'y': 'ʎ', 'z': 'z',
+                        'A': '∀', 'B': 'q', 'C': 'Ɔ', 'D': 'p', 'E': 'Ǝ', 'F': 'Ⅎ',
+                        'G': 'פ', 'H': 'H', 'I': 'I', 'J': 'ſ', 'K': 'ʞ', 'L': '˥',
+                        'M': 'W', 'N': 'N', 'O': 'O', 'P': 'Ԁ', 'Q': 'Ò', 'R': 'ᴚ',
+                        'S': 'S', 'T': '┴', 'U': '∩', 'V': 'Λ', 'W': 'M', 'X': 'X',
+                        'Y': '⅄', 'Z': 'Z'
+                    };
+                    return map[char] || char;
+                },
+                reversed: true
+            },
+            '取り消し線 (Strikethrough)': {
+                custom: (char) => {
+                    // Add combining strikethrough character
+                    if (char !== ' ') {
+                        return char + '\u0336';
+                    }
+                    return char;
+                }
+            },
+            '下線 (Underline)': {
+                custom: (char) => {
+                    // Add combining underline character
+                    if (char !== ' ') {
+                        return char + '\u0332';
+                    }
+                    return char;
+                }
+            },
+            '二重下線 (Double Underline)': {
+                custom: (char) => {
+                    // Add combining double underline character
+                    if (char !== ' ') {
+                        return char + '\u0333';
+                    }
+                    return char;
+                }
+            },
+            '波線 (Wavy)': {
+                custom: (char) => {
+                    // Add combining tilde below
+                    if (char !== ' ') {
+                        return char + '\u0330';
+                    }
+                    return char;
+                }
+            },
+            '上付き文字 (Superscript)': {
+                custom: (char) => {
+                    const map = {
+                        '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
+                        '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹',
+                        'a': 'ᵃ', 'b': 'ᵇ', 'c': 'ᶜ', 'd': 'ᵈ', 'e': 'ᵉ',
+                        'f': 'ᶠ', 'g': 'ᵍ', 'h': 'ʰ', 'i': 'ⁱ', 'j': 'ʲ',
+                        'k': 'ᵏ', 'l': 'ˡ', 'm': 'ᵐ', 'n': 'ⁿ', 'o': 'ᵒ',
+                        'p': 'ᵖ', 'r': 'ʳ', 's': 'ˢ', 't': 'ᵗ', 'u': 'ᵘ',
+                        'v': 'ᵛ', 'w': 'ʷ', 'x': 'ˣ', 'y': 'ʸ', 'z': 'ᶻ',
+                        'A': 'ᴬ', 'B': 'ᴮ', 'D': 'ᴰ', 'E': 'ᴱ', 'G': 'ᴳ',
+                        'H': 'ᴴ', 'I': 'ᴵ', 'J': 'ᴶ', 'K': 'ᴷ', 'L': 'ᴸ',
+                        'M': 'ᴹ', 'N': 'ᴺ', 'O': 'ᴼ', 'P': 'ᴾ', 'R': 'ᴿ',
+                        'T': 'ᵀ', 'U': 'ᵁ', 'V': 'ⱽ', 'W': 'ᵂ',
+                        '+': '⁺', '-': '⁻', '=': '⁼', '(': '⁽', ')': '⁾'
+                    };
+                    return map[char] || char;
+                }
+            },
+            '下付き文字 (Subscript)': {
+                custom: (char) => {
+                    const map = {
+                        '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄',
+                        '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉',
+                        'a': 'ₐ', 'e': 'ₑ', 'h': 'ₕ', 'i': 'ᵢ', 'j': 'ⱼ',
+                        'k': 'ₖ', 'l': 'ₗ', 'm': 'ₘ', 'n': 'ₙ', 'o': 'ₒ',
+                        'p': 'ₚ', 'r': 'ᵣ', 's': 'ₛ', 't': 'ₜ', 'u': 'ᵤ',
+                        'v': 'ᵥ', 'x': 'ₓ',
+                        '+': '₊', '-': '₋', '=': '₌', '(': '₍', ')': '₎'
+                    };
+                    return map[char] || char;
+                }
+            },
+            'スモールキャップス (Small Caps)': {
+                custom: (char) => {
+                    const map = {
+                        'a': 'ᴀ', 'b': 'ʙ', 'c': 'ᴄ', 'd': 'ᴅ', 'e': 'ᴇ',
+                        'f': 'ғ', 'g': 'ɢ', 'h': 'ʜ', 'i': 'ɪ', 'j': 'ᴊ',
+                        'k': 'ᴋ', 'l': 'ʟ', 'm': 'ᴍ', 'n': 'ɴ', 'o': 'ᴏ',
+                        'p': 'ᴘ', 'q': 'ǫ', 'r': 'ʀ', 's': 's', 't': 'ᴛ',
+                        'u': 'ᴜ', 'v': 'ᴠ', 'w': 'ᴡ', 'x': 'x', 'y': 'ʏ',
+                        'z': 'ᴢ'
+                    };
+                    // Keep uppercase as is, convert lowercase to small caps
+                    return map[char] || char;
+                }
+            },
+            '全角 (Fullwidth)': {
+                custom: (char) => {
+                    // Convert ASCII to fullwidth
+                    if (char === ' ') return '\u3000'; // Ideographic space
+                    const code = char.charCodeAt(0);
+                    if (code >= 33 && code <= 126) {
+                        return String.fromCodePoint(code + 0xFEE0);
+                    }
+                    return char;
+                }
+            },
+            'ネガティブ丸囲み (Negative Circled)': {
+                custom: (char) => {
+                    if (char >= 'A' && char <= 'Z') {
+                        return String.fromCodePoint(0x1F150 + (char.charCodeAt(0) - 65));
+                    }
+                    if (char >= 'a' && char <= 'z') {
+                        // Convert lowercase to uppercase for negative circled
+                        return String.fromCodePoint(0x1F150 + (char.charCodeAt(0) - 97));
+                    }
+                    return char;
+                }
+            },
+            'ネガティブ四角囲み (Negative Squared)': {
+                custom: (char) => {
+                    if (char >= 'A' && char <= 'Z') {
+                        return String.fromCodePoint(0x1F170 + (char.charCodeAt(0) - 65));
+                    }
+                    if (char >= 'a' && char <= 'z') {
+                        // Convert lowercase to uppercase for negative squared
+                        return String.fromCodePoint(0x1F170 + (char.charCodeAt(0) - 97));
+                    }
+                    return char;
+                }
+            },
+            '地域表示文字 (Regional Indicator)': {
+                custom: (char) => {
+                    // Convert to regional indicator symbols (like flag emojis use)
+                    if (char >= 'A' && char <= 'Z') {
+                        return String.fromCodePoint(0x1F1E6 + (char.charCodeAt(0) - 65));
+                    }
+                    if (char >= 'a' && char <= 'z') {
+                        return String.fromCodePoint(0x1F1E6 + (char.charCodeAt(0) - 97));
+                    }
+                    return char;
+                }
+            },
+            '括弧付き (Parenthesized)': {
+                custom: (char) => {
+                    if (char >= 'a' && char <= 'z') {
+                        return String.fromCodePoint(0x249C + (char.charCodeAt(0) - 97));
+                    }
+                    if (char >= '1' && char <= '9') {
+                        return String.fromCodePoint(0x2474 + (char.charCodeAt(0) - 49));
+                    }
+                    if (char >= 'A' && char <= 'Z') {
+                        // Convert uppercase to lowercase for parenthesized
+                        return String.fromCodePoint(0x249C + (char.charCodeAt(0) - 65));
+                    }
+                    return char;
+                }
+            },
+            'ピリオド付き (Period)': {
+                custom: (char) => {
+                    if (char >= 'a' && char <= 'z') {
+                        return String.fromCodePoint(0x1F110 + (char.charCodeAt(0) - 97));
+                    }
+                    if (char >= 'A' && char <= 'Z') {
+                        return String.fromCodePoint(0x1F110 + (char.charCodeAt(0) - 65));
+                    }
+                    return char;
+                }
+            }
+        };
+
+        function convertText(text, style) {
+            let result = '';
+            
+            // Reverse text if needed
+            const textToConvert = style.reversed ? text.split('').reverse().join('') : text;
+            
+            for (let char of textToConvert) {
+                if (style.custom) {
+                    result += style.custom(char);
+                } else {
+                    let converted = char;
+                    
+                    // Check exceptions first
+                    if (style.exceptions && style.exceptions[char]) {
+                        converted = style.exceptions[char];
+                    }
+                    // Uppercase letters
+                    else if (char >= 'A' && char <= 'Z' && style.upperStart) {
+                        const offset = char.charCodeAt(0) - 65;
+                        converted = String.fromCodePoint(style.upperStart + offset);
+                    }
+                    // Lowercase letters
+                    else if (char >= 'a' && char <= 'z' && style.lowerStart) {
+                        const offset = char.charCodeAt(0) - 97;
+                        converted = String.fromCodePoint(style.lowerStart + offset);
+                    }
+                    // Digits
+                    else if (char >= '0' && char <= '9' && style.digitStart) {
+                        const offset = char.charCodeAt(0) - 48;
+                        converted = String.fromCodePoint(style.digitStart + offset);
+                    }
+                    
+                    result += converted;
+                }
+            }
+            
+            return result;
+        }
+
+        function updateOutput(text) {
+            const outputSection = document.getElementById('outputSection');
+            
+            if (!text.trim()) {
+                outputSection.innerHTML = `
+                    <div class="empty-state">
+                        👆 上のボックスに文字を入力すると、様々なスタイルに変換されます<br>
+                        変換された文字をクリックするとコピーできます
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+            for (let [name, style] of Object.entries(styles)) {
+                const converted = convertText(text, style);
+                html += `
+                    <div class="style-item" onclick="copyToClipboard('${converted.replace(/'/g, "\\'")}')">
+                        <div class="style-name">${name}</div>
+                        <div class="style-output">${converted}</div>
+                    </div>
+                `;
+            }
+            
+            outputSection.innerHTML = html;
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                const notification = document.getElementById('copyNotification');
+                notification.classList.add('show');
+                setTimeout(() => {
+                    notification.classList.remove('show');
+                }, 2000);
+            });
+        }
+
+        document.getElementById('textInput').addEventListener('input', (e) => {
+            updateOutput(e.target.value);
+        });
+
+        // Initial empty state
+        updateOutput('');
+    </script>
+</body>
+</html>
